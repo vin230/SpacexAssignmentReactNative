@@ -1,112 +1,155 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- * @flow strict-local
- */
+import React, { Component } from 'react';
+import { ActivityIndicator, FlatList, Text, View, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import constants from './constants';
+import RenderItem from './src/components/RenderItem';
 
-import React from 'react';
-import type {Node} from 'react';
-import {
-  SafeAreaView,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  useColorScheme,
-  View,
-} from 'react-native';
+export default class App extends Component {
 
-import {
-  Colors,
-  DebugInstructions,
-  Header,
-  LearnMoreLinks,
-  ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
+  constructor(props) {
+    super(props);
+    this.state = {
+      items: [],
+      isLoaded: false,
+      launch: false,
+      land: false,
+      year: false,
+      selected: undefined,
+      filters: {
+        limit: 150,
+        launch_year: undefined,
+        launch_success: undefined,
+        land_success: undefined,
+      },
+    }
 
-const Section = ({children, title}): Node => {
-  const isDarkMode = useColorScheme() === 'dark';
-  return (
-    <View style={styles.sectionContainer}>
-      <Text
-        style={[
-          styles.sectionTitle,
-          {
-            color: isDarkMode ? Colors.white : Colors.black,
-          },
-        ]}>
-        {title}
-      </Text>
-      <Text
-        style={[
-          styles.sectionDescription,
-          {
-            color: isDarkMode ? Colors.light : Colors.dark,
-          },
-        ]}>
-        {children}
-      </Text>
-    </View>
-  );
-};
+  }
 
-const App: () => Node = () => {
-  const isDarkMode = useColorScheme() === 'dark';
+  getUpdatedApiUrl(filters = {}) {
+    const filtered = JSON.stringify({ ...filters }).replace(/['"{}]+/g, '');
+    const temp = filtered.replace(/[,]+/g, "&")
+    const final = temp.replace(/[:]+/g, "=")
+    //console.log(constants.API_BASE_URL+final,'inside getUpdatedApiUrl')
+    return constants.API_BASE_URL + final;
+  }
 
-  const backgroundStyle = {
-    backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
+  fetchAPI(filters) {
+    const URL = this.getUpdatedApiUrl(filters);
+    this.setState({ isLoaded: true, filters });
+    //console.log(URL,'this is url of filter');
+    fetch(URL)
+      .then(response => response.json())
+      .then(data => {
+        this.setState({
+          isLoaded: false,
+          data
+        });
+      });
+  }
+
+  componentDidMount() {
+    this.fetchAPI(this.state.filters);
+  }
+
+  updateApiFilters(type, value) {
+    // if same value is clicked, we remove that filter
+    if (this.state.filters[type] === value) {
+      //console.log(this.state.filters[type],'inside update filters')
+      value = undefined;
+    }
+
+    const filters = {
+      ...this.state.filters,
+      [type]: value,
+    };
+    //console.log(filters,'inside update filters')
+    this.fetchAPI(filters);
+  }
+
+  changeColor = id => {
+    this.setState({ selected: id });
+    if(this.state.selected == id){
+      this.setState({selected: undefined})
+    }
+    if(id == "launch"){
+      this.setState({launch:!this.state.launch})
+    }
+    if(id == "land"){
+      this.setState({land:!this.state.land})
+    }
   };
 
-  return (
-    <SafeAreaView style={backgroundStyle}>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        style={backgroundStyle}>
-        <Header />
-        <View
-          style={{
-            backgroundColor: isDarkMode ? Colors.black : Colors.white,
-          }}>
-          <Section title="Step One">
-            Edit <Text style={styles.highlight}>App.js</Text> to change this
-            screen and then come back to see your edits.
-          </Section>
-          <Section title="See Your Changes">
-            <ReloadInstructions />
-          </Section>
-          <Section title="Debug">
-            <DebugInstructions />
-          </Section>
-          <Section title="Learn More">
-            Read the docs to discover what to do next:
-          </Section>
-          <LearnMoreLinks />
+  render() {
+    const { isLoaded, data, selected, launch, land } = this.state;
+    const uniqueLaunchYears = new Array(16).fill(0).map((_, index) => 2006 + index);
+    return (
+      <View style={styles.flatlist}>
+        {isLoaded ? <ActivityIndicator style={{ paddingRight: 100 }} size={'large'} color="green" /> : (
+          <FlatList
+            data={data}
+            keyExtractor={(item) => item.flight_number}
+            renderItem={({ item }) => (
+              <RenderItem item={item} />
+            )}
+            numColumns={2}
+          />
+        )}
+        <View style={styles.buttonCont}>
+          <TouchableOpacity onPress={() => { this.updateApiFilters("launch_success", true), this.changeColor("launch") }} style={[styles.success, {backgroundColor: launch ? "green" : "white"  }]}>
+            <Text style={[launch ? { color: "white" } : { color: "black" }, { textAlign: 'center' }]}>Successful Launch</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => { this.updateApiFilters("land_success", true), this.changeColor("land") }} style={[styles.success, {backgroundColor: land ? "green" : "white"}]}>
+            <Text style={[land ? { color: "white" } : { color: "black" }, { textAlign: 'center' }]}>Successful Landing</Text>
+          </TouchableOpacity>
+          <ScrollView>
+            {
+              uniqueLaunchYears.map((data, index) => {
+                return (
+                  <View key={index} style={{ flex: 1 }}>
+                    <TouchableOpacity onPress={() => { this.updateApiFilters("launch_year", data), this.changeColor(index) }} style={[styles.year, { backgroundColor: selected == index ? "green" : "white" }]}>
+                      <Text style={{ color: selected == index ? "white" : "black" }}>{data}</Text>
+                    </TouchableOpacity>
+                  </View>
+                )
+              })
+            }
+          </ScrollView>
         </View>
-      </ScrollView>
-    </SafeAreaView>
-  );
-};
+      </View>
+    );
+  }
+}
 
 const styles = StyleSheet.create({
-  sectionContainer: {
-    marginTop: 32,
-    paddingHorizontal: 24,
-  },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '600',
-  },
-  sectionDescription: {
-    marginTop: 8,
-    fontSize: 18,
-    fontWeight: '400',
-  },
-  highlight: {
-    fontWeight: '700',
-  },
-});
 
-export default App;
+  flatlist: {
+    flex: 1,
+    justifyContent: 'center',
+    backgroundColor:'white'
+  },
+  success: {
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 50,
+    width: 100,
+    margin: 5,
+    borderWidth: 2,
+    borderColor: 'green'
+  },
+  buttonCont: {
+    position: 'absolute',
+    right: 10,
+    top: 10,
+    bottom: 20
+  },
+  year: {
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 50,
+    width: 100,
+    margin: 5,
+    borderWidth: 2,
+    borderColor: 'green'
+  }
+})
